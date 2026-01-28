@@ -1,19 +1,23 @@
 {
-	"name": "n8n-nodes-<...>",
+	"name": "n8n-nodes-nowcapital",
 	"version": "0.1.0",
-	"description": "",
+	"description": "n8n node for NowCapital.ca Canadian Retirement Planning API",
 	"license": "MIT",
-	"homepage": "",
+	"homepage": "https://nowcapital.ca",
 	"keywords": [
-		"n8n-community-node-package"
+		"n8n-community-node-package",
+		"retirement",
+		"canada",
+		"financial-planning",
+		"nowcapital"
 	],
 	"author": {
-		"name": "",
-		"email": ""
+		"name": "XmeleeLabs",
+		"email": "support@nowcapital.ca"
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/<...>/n8n-nodes-<...>.git"
+		"url": "https://github.com/XmeleeLabs/n8n-nodes-nowcapital.git"
 	},
 	"scripts": {
 		"build": "n8n-node build",
@@ -31,12 +35,10 @@
 		"n8nNodesApiVersion": 1,
 		"strict": true,
 		"credentials": [
-			"dist/credentials/GithubIssuesApi.credentials.js",
-			"dist/credentials/GithubIssuesOAuth2Api.credentials.js"
+			"dist/credentials/NowCapitalApi.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/GithubIssues/GithubIssues.node.js",
-			"dist/nodes/Example/Example.node.js"
+			"dist/nodes/NowCapital/NowCapital.node.js"
 		]
 	},
 	"devDependencies": {
