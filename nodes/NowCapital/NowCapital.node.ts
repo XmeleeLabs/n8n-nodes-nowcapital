@@ -6,8 +6,20 @@ import {
     NodeOperationError,
 } from 'n8n-workflow';
 
+interface CalculationPayload {
+    person1_ui: Record<string, unknown>;
+    person2_ui: Record<string, unknown>;
+    inputs: {
+        expected_returns: number;
+        cpi: number;
+        [key: string]: unknown;
+    };
+    withdrawal_strategy: Record<string, unknown>;
+    target_monthly_spend?: number;
+}
+
 // Helper function to build the base API payload (mirrors the working MCP server logic)
-function constructPayload(context: IExecuteFunctions, itemIndex: number): any {
+function constructPayload(context: IExecuteFunctions, itemIndex: number): CalculationPayload {
     const scenarioType = context.getNodeParameter('scenarioType', itemIndex) as string;
     const isIndividual = scenarioType === 'individual';
 
@@ -20,15 +32,17 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): any {
     const cpi = context.getNodeParameter('cpi', itemIndex) as number;
 
     // Get advanced options
-    const advancedOptions = context.getNodeParameter('advancedOptions', itemIndex, {}) as Record<string, any>;
-    const person2Options = isIndividual ? {} : context.getNodeParameter('person2Options', itemIndex, {}) as Record<string, any>;
+    const advancedOptions = context.getNodeParameter('advancedOptions', itemIndex, {}) as Record<string, unknown>;
+    const person2Options = isIndividual ? {} : context.getNodeParameter('person2Options', itemIndex, {}) as Record<string, unknown>;
 
     const p1NonReg = context.getNodeParameter('p1NonRegistered', itemIndex) as number || 0;
-    const p2NonReg = person2Options.p2NonRegistered || 0;
+    const p1NonRegAcb = advancedOptions.p1NonRegAcb as number | undefined;
+    const p2NonReg = (person2Options.p2NonRegistered as number) || 0;
+    const p2NonRegAcb = person2Options.p2NonRegAcb as number | undefined;
 
     // ACB Logic (mirrors MCP server)
-    const p1CostBasis = advancedOptions.p1NonRegAcb !== undefined ? advancedOptions.p1NonRegAcb : (p1NonReg * 0.9);
-    const p2CostBasis = person2Options.p2NonRegAcb !== undefined ? person2Options.p2NonRegAcb : (p2NonReg * 0.9);
+    const p1CostBasis = p1NonRegAcb !== undefined ? p1NonRegAcb : (p1NonReg * 0.9);
+    const p2CostBasis = p2NonRegAcb !== undefined ? p2NonRegAcb : (p2NonReg * 0.9);
 
     return {
         person1_ui: {
@@ -60,9 +74,9 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): any {
         },
         person2_ui: {
             name: 'Person 2',
-            current_age: person2Options.p2CurrentAge || p1CurrentAge,
-            retirement_age: person2Options.p2Retire || p1RetirementAge,
-            death_age: person2Options.p2DeathAge || p1DeathAge,
+            current_age: (person2Options.p2CurrentAge as number) || p1CurrentAge,
+            retirement_age: (person2Options.p2Retire as number) || p1RetirementAge,
+            death_age: (person2Options.p2DeathAge as number) || p1DeathAge,
             rrsp: person2Options.p2Rrsp || 0,
             tfsa: person2Options.p2Tfsa || 0,
             non_registered: p2NonReg,
@@ -113,17 +127,28 @@ export class NowCapital implements INodeType {
         credentials: [{ name: 'nowCapitalApi', required: true }],
         properties: [
             {
+                displayName: 'Resource',
+                name: 'resource',
+                type: 'options',
+                noDataExpression: true,
+                options: [
+                    { name: 'Plan', value: 'plan' },
+                ],
+                default: 'plan',
+            },
+            {
                 displayName: 'Operation',
                 name: 'operation',
                 type: 'options',
                 noDataExpression: true,
+                displayOptions: { show: { resource: ['plan'] } },
                 options: [
+                    { name: 'Calculate Specific Spend', value: 'calculateWithTargetSpend', action: 'Calculate with target spending' },
                     { name: 'Calculate Sustainable Spend', value: 'calculateMaxSpend', action: 'Calculate sustainable monthly spending' },
                     { name: 'Get Detailed Projections', value: 'calculateMaxSpendWithYearlyData', action: 'Get detailed yearly projections' },
-                    { name: 'Calculate Specific Spend', value: 'calculateWithTargetSpend', action: 'Calculate with target spending' },
-                    { name: 'Run Monte Carlo Simulation', value: 'monteCarlo', action: 'Start monte carlo simulation' },
-                    { name: 'Get Simulation Status', value: 'getSimulationStatus', action: 'Get simulation status' },
                     { name: 'Get Simulation Result', value: 'getSimulationResult', action: 'Get simulation result' },
+                    { name: 'Get Simulation Status', value: 'getSimulationStatus', action: 'Get simulation status' },
+                    { name: 'Run Monte Carlo Simulation', value: 'monteCarlo', action: 'Start monte carlo simulation' },
                 ],
                 default: 'calculateMaxSpend',
             },
@@ -133,7 +158,7 @@ export class NowCapital implements INodeType {
                 type: 'number',
                 default: 5000,
                 required: true,
-                displayOptions: { show: { operation: ['calculateWithTargetSpend', 'monteCarlo'] } },
+                displayOptions: { show: { resource: ['plan'], operation: ['calculateWithTargetSpend', 'monteCarlo'] } },
                 description: 'Amount of money to spend monthly after-tax',
             },
             {
@@ -145,49 +170,49 @@ export class NowCapital implements INodeType {
                     { name: 'Couple', value: 'couple' },
                 ],
                 default: 'individual',
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - Current Age',
                 name: 'p1CurrentAge',
                 type: 'number',
                 default: 60,
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - Retirement Age',
                 name: 'p1RetirementAge',
                 type: 'number',
                 default: 65,
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - Death Age',
                 name: 'p1DeathAge',
                 type: 'number',
                 default: 92,
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - RRSP Balance',
                 name: 'p1Rrsp',
                 type: 'number',
                 default: 500000,
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - TFSA Balance',
                 name: 'p1Tfsa',
                 type: 'number',
                 default: 100000,
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - Non-Registered Balance',
                 name: 'p1NonRegistered',
                 type: 'number',
                 default: 0,
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Province',
@@ -195,21 +220,21 @@ export class NowCapital implements INodeType {
                 type: 'options',
                 options: [{ name: 'Ontario', value: 'ON' }, { name: 'BC', value: 'BC' }, { name: 'Alberta', value: 'AB' }, { name: 'Quebec', value: 'QC' }],
                 default: 'ON',
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Expected Returns (%)',
                 name: 'expectedReturns',
                 type: 'number',
                 default: 4.5,
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Inflation Rate (%)',
                 name: 'cpi',
                 type: 'number',
                 default: 2.3,
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Job ID',
@@ -217,7 +242,7 @@ export class NowCapital implements INodeType {
                 type: 'string',
                 default: '',
                 required: true,
-                displayOptions: { show: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'], operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Advanced Options',
@@ -225,23 +250,23 @@ export class NowCapital implements INodeType {
                 type: 'collection',
                 placeholder: 'Add Option',
                 default: {},
-                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
-                    { displayName: 'RRSP Contribution Room', name: 'p1RrspContributionRoom', type: 'number', default: 0 },
-                    { displayName: 'TFSA Contribution Room', name: 'p1TfsaContributionRoom', type: 'number', default: 0 },
+                    { displayName: 'Annual Non-Reg Contrib', name: 'p1NonRegisteredContribution', type: 'number', default: 0 },
                     { displayName: 'Annual RRSP Contrib', name: 'p1RrspContribution', type: 'number', default: 0 },
                     { displayName: 'Annual TFSA Contrib', name: 'p1TfsaContribution', type: 'number', default: 0 },
-                    { displayName: 'Annual Non-Reg Contrib', name: 'p1NonRegisteredContribution', type: 'number', default: 0 },
-                    { displayName: 'CPP Start Age', name: 'p1CppStartAge', type: 'number', default: 65 },
-                    { displayName: 'OAS Start Age', name: 'p1OasStartAge', type: 'number', default: 65 },
                     { displayName: 'Base CPP Amount', name: 'p1BaseCppAmount', type: 'number', default: 17196 },
                     { displayName: 'Base OAS Amount', name: 'p1BaseOasAmount', type: 'number', default: 8876 },
-                    { displayName: 'Enable DB Pension', name: 'p1DbEnabled', type: 'boolean', default: false },
+                    { displayName: 'CPP Start Age', name: 'p1CppStartAge', type: 'number', default: 65 },
                     { displayName: 'DB Pension Income', name: 'p1DbPensionIncome', type: 'number', default: 0 },
                     { displayName: 'DB Start Age', name: 'p1DbStartAge', type: 'number', default: 65 },
+                    { displayName: 'Enable DB Pension', name: 'p1DbEnabled', type: 'boolean', default: false },
                     { displayName: 'Enable RRSP Meltdown', name: 'p1Meltdown', type: 'boolean', default: false },
                     { displayName: 'Income Splitting', name: 'incomeSplit', type: 'boolean', default: true },
+                    { displayName: 'OAS Start Age', name: 'p1OasStartAge', type: 'number', default: 65 },
+                    { displayName: 'RRSP Contribution Room', name: 'p1RrspContributionRoom', type: 'number', default: 0 },
                     { displayName: 'Survivor Expense %', name: 'survivorExpensePercent', type: 'number', default: 100 },
+                    { displayName: 'TFSA Contribution Room', name: 'p1TfsaContributionRoom', type: 'number', default: 0 },
                 ],
             },
             {
@@ -250,17 +275,18 @@ export class NowCapital implements INodeType {
                 type: 'collection',
                 placeholder: 'Add Details',
                 default: {},
-                displayOptions: { show: { scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
                     { displayName: 'Current Age', name: 'p2CurrentAge', type: 'number', default: 60 },
-                    { displayName: 'Retirement Age', name: 'p2Retire', type: 'number', default: 65 },
                     { displayName: 'Death Age', name: 'p2DeathAge', type: 'number', default: 92 },
+                    { displayName: 'Non-Reg', name: 'p2NonRegistered', type: 'number', default: 0 },
+                    { displayName: 'Retirement Age', name: 'p2Retire', type: 'number', default: 65 },
                     { displayName: 'RRSP', name: 'p2Rrsp', type: 'number', default: 0 },
                     { displayName: 'TFSA', name: 'p2Tfsa', type: 'number', default: 0 },
-                    { displayName: 'Non-Reg', name: 'p2NonRegistered', type: 'number', default: 0 },
                 ],
             },
         ],
+        usableAsTool: true,
     };
 
     async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
@@ -274,10 +300,10 @@ export class NowCapital implements INodeType {
                 const operation = this.getNodeParameter('operation', i) as string;
                 let response;
                 if (operation === 'getSimulationStatus' || operation === 'getSimulationResult') {
-                    let jobId = this.getNodeParameter('jobId', i) as string;
+                    const jobId = this.getNodeParameter('jobId', i) as string;
 
                     // 1. Check status of the current ID
-                    let statusResponse = await this.helpers.httpRequest({
+                    const statusResponse = await this.helpers.httpRequest({
                         method: 'GET',
                         url: `${baseUrl}/simulations/status/${jobId}`,
                         headers: { 'x-api-key': credentials.apiKey as string },
@@ -333,10 +359,10 @@ export class NowCapital implements INodeType {
                     if (operation === 'monteCarlo') {
                         payload.inputs.expected_returns /= 100;
                         payload.inputs.cpi /= 100;
-                        payload.target_monthly_spend = this.getNodeParameter('targetMonthlySpend', i);
+                        payload.target_monthly_spend = this.getNodeParameter('targetMonthlySpend', i) as number;
                     }
                     if (operation === 'calculateWithTargetSpend') {
-                        payload.target_monthly_spend = this.getNodeParameter('targetMonthlySpend', i);
+                        payload.target_monthly_spend = this.getNodeParameter('targetMonthlySpend', i) as number;
                     }
 
                     const endpoint = operation === 'calculateMaxSpend' ? 'calculate-max-spend' :
