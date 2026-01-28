@@ -1,6 +1,4 @@
 import {
-    IAuthenticateGeneric,
-    ICredentialTestRequest,
     ICredentialType,
     INodeProperties,
 } from 'n8n-workflow';
@@ -8,36 +6,23 @@ import {
 export class NowCapitalApi implements ICredentialType {
     name = 'nowCapitalApi';
     displayName = 'NowCapital API';
-    documentationUrl = 'https://nowcapital.ca';
-
+    documentationUrl = 'https://nowcapital.ca/api-docs';
     properties: INodeProperties[] = [
         {
             displayName: 'API Key',
             name: 'apiKey',
             type: 'string',
-            typeOptions: {
-                password: true,
-            },
+            typeOptions: { password: true },
             default: '',
             required: true,
-            description: 'Your NowCapital.ca API key. Get one at https://nowcapital.ca (API Access section).',
+            description: 'API Key from your NowCapital.ca account (API Access section)',
+        },
+        {
+            displayName: 'Base URL',
+            name: 'baseUrl',
+            type: 'string',
+            default: 'https://api.nowcapital.ca',
+            description: 'The URL of your NowCapital API instance (default: https://api.nowcapital.ca)',
         },
     ];
-
-    authenticate: IAuthenticateGeneric = {
-        type: 'generic',
-        properties: {
-            headers: {
-                'x-api-key': '={{$credentials.apiKey}}',
-            },
-        },
-    };
-
-    test: ICredentialTestRequest = {
-        request: {
-            baseURL: 'https://api.nowcapital.ca',
-            url: '/',
-            method: 'GET',
-        },
-    };
 }
