@@ -17,7 +17,7 @@ This is an n8n community node for integrating with the [NowCapital.ca](https://n
 Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
 
 ```bash
-npm install n8n-nodes-nowcapital
+npm install @nowcapital/n8n-nodes-nowcapital
 ```
 
 ## Credentials
