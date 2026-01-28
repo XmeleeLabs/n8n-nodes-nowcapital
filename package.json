@@ -1,5 +1,8 @@
 {
 	"name": "@nowcapital/n8n-nodes-nowcapital",
+	"publishConfig": {
+		"access": "public"
+	},
 	"version": "1.0.0",
 	"description": "n8n node for NowCapital.ca Canadian Retirement Planning API",
 	"license": "MIT",
