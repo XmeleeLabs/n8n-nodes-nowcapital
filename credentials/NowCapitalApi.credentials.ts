@@ -42,7 +42,7 @@ export class NowCapitalApi implements ICredentialType {
     test: ICredentialTestRequest = {
         request: {
             method: 'GET',
-            url: '={{$credentials.baseUrl}}/api-keys/status',
+            url: '={{$credentials.baseUrl}}/auth/keys/status',
         },
     };
 }
