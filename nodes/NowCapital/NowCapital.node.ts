@@ -106,7 +106,7 @@ export class NowCapital implements INodeType {
         group: ['transform'],
         version: 1,
         subtitle: '={{$parameter["operation"]}}',
-        description: 'Canadian Retirement Planning Calculator - SUS Version',
+        description: 'Advanced Canadian Retirement Planning & Monte Carlo Simulations',
         defaults: { name: 'NowCapital' },
         inputs: ['main'],
         outputs: ['main'],
@@ -123,6 +123,7 @@ export class NowCapital implements INodeType {
                     { name: 'Calculate Specific Spend', value: 'calculateWithTargetSpend', action: 'Calculate with target spending' },
                     { name: 'Run Monte Carlo Simulation', value: 'monteCarlo', action: 'Start monte carlo simulation' },
                     { name: 'Get Simulation Status', value: 'getSimulationStatus', action: 'Get simulation status' },
+                    { name: 'Get Simulation Result', value: 'getSimulationResult', action: 'Get simulation result' },
                 ],
                 default: 'calculateMaxSpend',
             },
@@ -144,49 +145,49 @@ export class NowCapital implements INodeType {
                     { name: 'Couple', value: 'couple' },
                 ],
                 default: 'individual',
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - Current Age',
                 name: 'p1CurrentAge',
                 type: 'number',
                 default: 60,
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - Retirement Age',
                 name: 'p1RetirementAge',
                 type: 'number',
                 default: 65,
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - Death Age',
                 name: 'p1DeathAge',
                 type: 'number',
                 default: 92,
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - RRSP Balance',
                 name: 'p1Rrsp',
                 type: 'number',
                 default: 500000,
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - TFSA Balance',
                 name: 'p1Tfsa',
                 type: 'number',
                 default: 100000,
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Person 1 - Non-Registered Balance',
                 name: 'p1NonRegistered',
                 type: 'number',
                 default: 0,
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Province',
@@ -194,28 +195,29 @@ export class NowCapital implements INodeType {
                 type: 'options',
                 options: [{ name: 'Ontario', value: 'ON' }, { name: 'BC', value: 'BC' }, { name: 'Alberta', value: 'AB' }, { name: 'Quebec', value: 'QC' }],
                 default: 'ON',
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Expected Returns (%)',
                 name: 'expectedReturns',
                 type: 'number',
                 default: 4.5,
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Inflation Rate (%)',
                 name: 'cpi',
                 type: 'number',
                 default: 2.3,
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
-                displayName: 'Task ID',
-                name: 'taskId',
+                displayName: 'Job ID',
+                name: 'jobId',
                 type: 'string',
                 default: '',
-                displayOptions: { show: { operation: ['getSimulationStatus'] } },
+                required: true,
+                displayOptions: { show: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
                 displayName: 'Advanced Options',
@@ -223,7 +225,7 @@ export class NowCapital implements INodeType {
                 type: 'collection',
                 placeholder: 'Add Option',
                 default: {},
-                displayOptions: { hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
                     { displayName: 'RRSP Contribution Room', name: 'p1RrspContributionRoom', type: 'number', default: 0 },
                     { displayName: 'TFSA Contribution Room', name: 'p1TfsaContributionRoom', type: 'number', default: 0 },
@@ -248,7 +250,7 @@ export class NowCapital implements INodeType {
                 type: 'collection',
                 placeholder: 'Add Details',
                 default: {},
-                displayOptions: { show: { scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus'] } },
+                displayOptions: { show: { scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
                     { displayName: 'Current Age', name: 'p2CurrentAge', type: 'number', default: 60 },
                     { displayName: 'Retirement Age', name: 'p2Retire', type: 'number', default: 65 },
@@ -270,27 +272,73 @@ export class NowCapital implements INodeType {
         for (let i = 0; i < items.length; i++) {
             try {
                 const operation = this.getNodeParameter('operation', i) as string;
-                const payload = constructPayload(this, i);
-
-                if (operation === 'monteCarlo') {
-                    payload.inputs.expected_returns /= 100;
-                    payload.inputs.cpi /= 100;
-                    payload.target_monthly_spend = this.getNodeParameter('targetMonthlySpend', i);
-                }
-                if (operation === 'calculateWithTargetSpend') {
-                    payload.target_monthly_spend = this.getNodeParameter('targetMonthlySpend', i);
-                }
-
                 let response;
-                if (operation === 'getSimulationStatus') {
-                    const taskId = this.getNodeParameter('taskId', i) as string;
-                    response = await this.helpers.httpRequest({
+                if (operation === 'getSimulationStatus' || operation === 'getSimulationResult') {
+                    let jobId = this.getNodeParameter('jobId', i) as string;
+
+                    // 1. Check status of the current ID
+                    let statusResponse = await this.helpers.httpRequest({
                         method: 'GET',
-                        url: `${baseUrl}/simulations/status/${taskId}`,
+                        url: `${baseUrl}/simulations/status/${jobId}`,
                         headers: { 'x-api-key': credentials.apiKey as string },
                         json: true,
                     });
+
+                    // 2. If Success, check if it's a handover to an orchestrator
+                    if (statusResponse.status === 'SUCCESS') {
+                        const resultResponse = await this.helpers.httpRequest({
+                            method: 'GET',
+                            url: `${baseUrl}/simulations/result/${jobId}`,
+                            headers: { 'x-api-key': credentials.apiKey as string },
+                            json: true,
+                        });
+
+                        // Check for the "Orchestrator started" pattern (Backend handover)
+                        if (resultResponse && resultResponse.status === 'Orchestrator started' && resultResponse.result_id) {
+                            const subId = resultResponse.result_id;
+                            // The user's original task is "Success" (handed off), but the simulation is still running.
+                            // We poll the SUB-ID to give the user the REAL status of their plan.
+                            if (operation === 'getSimulationStatus') {
+                                response = await this.helpers.httpRequest({
+                                    method: 'GET',
+                                    url: `${baseUrl}/simulations/status/${subId}`,
+                                    headers: { 'x-api-key': credentials.apiKey as string },
+                                    json: true,
+                                });
+                                // Keep the original IDs for reference
+                                response.original_task_id = jobId;
+                                response.sub_task_id = subId;
+                            } else {
+                                // Get Result: Fetch the ACTUAL math results from the sub-task
+                                response = await this.helpers.httpRequest({
+                                    method: 'GET',
+                                    url: `${baseUrl}/simulations/result/${subId}`,
+                                    headers: { 'x-api-key': credentials.apiKey as string },
+                                    json: true,
+                                });
+                                response.original_task_id = jobId;
+                                response.sub_task_id = subId;
+                            }
+                        } else {
+                            // No handover, this is the final final result
+                            response = operation === 'getSimulationStatus' ? statusResponse : resultResponse;
+                        }
+                    } else {
+                        // Still PENDING or FAILURE
+                        response = statusResponse;
+                    }
                 } else {
+                    const payload = constructPayload(this, i);
+
+                    if (operation === 'monteCarlo') {
+                        payload.inputs.expected_returns /= 100;
+                        payload.inputs.cpi /= 100;
+                        payload.target_monthly_spend = this.getNodeParameter('targetMonthlySpend', i);
+                    }
+                    if (operation === 'calculateWithTargetSpend') {
+                        payload.target_monthly_spend = this.getNodeParameter('targetMonthlySpend', i);
+                    }
+
                     const endpoint = operation === 'calculateMaxSpend' ? 'calculate-max-spend' :
                         operation === 'calculateMaxSpendWithYearlyData' ? 'calculate-max-spend-with-yearly-data' :
                             operation === 'calculateWithTargetSpend' ? 'calculate-with-target-spend' : 'monte-carlo';
