@@ -19,101 +19,153 @@ interface CalculationPayload {
 }
 
 // Helper function to build the base API payload (mirrors the working MCP server logic)
+// Helper function to build the base API payload (mirrors the working MCP server logic)
 function constructPayload(context: IExecuteFunctions, itemIndex: number): CalculationPayload {
     const scenarioType = context.getNodeParameter('scenarioType', itemIndex) as string;
     const isIndividual = scenarioType === 'individual';
 
-    // Get common parameters
-    const p1CurrentAge = context.getNodeParameter('p1CurrentAge', itemIndex) as number;
-    const p1RetirementAge = context.getNodeParameter('p1RetirementAge', itemIndex) as number;
-    const p1DeathAge = context.getNodeParameter('p1DeathAge', itemIndex) as number;
-    const province = context.getNodeParameter('province', itemIndex) as string;
+    // Helper to get collection parameters safely
+    const getCollection = (paramName: string) => context.getNodeParameter(paramName, itemIndex, {}) as Record<string, unknown>;
+
+    // Common Inputs
     const expectedReturns = context.getNodeParameter('expectedReturns', itemIndex) as number;
     const cpi = context.getNodeParameter('cpi', itemIndex) as number;
+    const province = context.getNodeParameter('province', itemIndex) as string;
 
-    // Get advanced options
-    const advancedOptions = context.getNodeParameter('advancedOptions', itemIndex, {}) as Record<string, unknown>;
-    const person2Options = isIndividual ? {} : context.getNodeParameter('person2Options', itemIndex, {}) as Record<string, unknown>;
+    // Global Settings
+    const globalSettings = getCollection('globalSettings');
 
+    // Person 1 Data
+    const p1Adv = getCollection('p1AdvancedOptions');
+    const p1Db = getCollection('p1DbPension');
     const p1NonReg = context.getNodeParameter('p1NonRegistered', itemIndex) as number || 0;
-    const p1NonRegAcb = advancedOptions.p1NonRegAcb as number | undefined;
-    const p2NonReg = (person2Options.p2NonRegistered as number) || 0;
-    const p2NonRegAcb = person2Options.p2NonRegAcb as number | undefined;
+    const p1NonRegAcb = context.getNodeParameter('p1NonRegAcb', itemIndex) as number || 0;
+    // Calc default cost basis if 0 provided (using P1's specific growth assumption, defaulting to 90%)
+    const p1DefaultCostBasisPct = (p1Adv.nonRegGrowthCapGains as number || 90) / 100;
+    const p1CostBasis = p1NonRegAcb !== 0 ? p1NonRegAcb : (p1NonReg * p1DefaultCostBasisPct);
 
-    // ACB Logic (mirrors MCP server)
-    const p1CostBasis = p1NonRegAcb !== undefined ? p1NonRegAcb : (p1NonReg * 0.9);
-    const p2CostBasis = p2NonRegAcb !== undefined ? p2NonRegAcb : (p2NonReg * 0.9);
+    // Person 2 Data (or defaults if individual)
+    const p2Adv = isIndividual ? {} : getCollection('p2AdvancedOptions');
+    const p2Db = isIndividual ? {} : getCollection('p2DbPension');
+    const p2NonReg = isIndividual ? 0 : (context.getNodeParameter('p2NonRegistered', itemIndex) as number || 0);
+    const p2NonRegAcb = isIndividual ? 0 : (context.getNodeParameter('p2NonRegAcb', itemIndex) as number || 0);
+    const p2DefaultCostBasisPct = (p2Adv.nonRegGrowthCapGains as number || 90) / 100;
+    const p2CostBasis = p2NonRegAcb !== 0 ? p2NonRegAcb : (p2NonReg * p2DefaultCostBasisPct);
+
+    // Helper to extract Withdrawal Order from Fixed Collection
+    const getWithdrawalOrder = (paramName: string) => {
+        const raw = context.getNodeParameter(paramName, itemIndex, {}) as { order?: { first: string; second: string; third: string } };
+        if (raw.order) {
+            return [raw.order.first, raw.order.second, raw.order.third];
+        }
+        return ['rrsp', 'non_registered', 'tfsa']; // Default fallback
+    };
 
     return {
         person1_ui: {
-            name: 'Person 1',
-            current_age: p1CurrentAge,
-            retirement_age: p1RetirementAge,
-            death_age: p1DeathAge,
+            name: context.getNodeParameter('p1Name', itemIndex) as string,
+            current_age: context.getNodeParameter('p1CurrentAge', itemIndex) as number,
+            retirement_age: context.getNodeParameter('p1RetirementAge', itemIndex) as number,
+            death_age: context.getNodeParameter('p1DeathAge', itemIndex) as number,
             province: province,
-            rrsp: context.getNodeParameter('p1Rrsp', itemIndex),
-            tfsa: context.getNodeParameter('p1Tfsa', itemIndex),
+            rrsp: context.getNodeParameter('p1Rrsp', itemIndex) as number,
+            tfsa: context.getNodeParameter('p1Tfsa', itemIndex) as number,
             non_registered: p1NonReg,
-            lira: advancedOptions.p1Lira || 0,
+            lira: p1Adv.lira || 0,
             cost_basis: p1CostBasis,
-            rrsp_contribution_room: advancedOptions.p1RrspContributionRoom || 0,
-            tfsa_contribution_room: advancedOptions.p1TfsaContributionRoom || 0,
-            cpp_start_age: advancedOptions.p1CppStartAge || 65,
-            oas_start_age: advancedOptions.p1OasStartAge || 65,
-            base_cpp_amount: advancedOptions.p1BaseCppAmount || 12000,
-            base_oas_amount: advancedOptions.p1BaseOasAmount || 8800,
-            rrsp_contribution: advancedOptions.p1RrspContribution || 0,
-            tfsa_contribution: advancedOptions.p1TfsaContribution || 0,
-            non_registered_contribution: advancedOptions.p1NonRegisteredContribution || 0,
-            db_enabled: advancedOptions.p1DbEnabled || false,
-            db_pension_income: advancedOptions.p1DbPensionIncome || 0,
-            db_start_age: advancedOptions.p1DbStartAge || 65,
-            db_index_before_retirement: advancedOptions.p1DbIndexBefore !== undefined ? advancedOptions.p1DbIndexBefore : true,
-            db_index_after_retirement: advancedOptions.p1DbIndexAfter || 0,
-            enable_rrsp_meltdown: advancedOptions.p1Meltdown || false,
+            rrsp_contribution_room: p1Adv.rrspContributionRoom || 0,
+            tfsa_contribution_room: p1Adv.tfsaContributionRoom || 0,
+            cpp_start_age: p1Adv.cppStartAge || 65,
+            oas_start_age: p1Adv.oasStartAge || 65,
+            base_cpp_amount: p1Adv.baseCppAmount || 17196,
+            base_oas_amount: p1Adv.baseOasAmount || 8876,
+            rrsp_contribution: p1Adv.rrspContribution || 0,
+            tfsa_contribution: p1Adv.tfsaContribution || 0,
+            non_registered_contribution: p1Adv.nonRegisteredContribution || 0,
+            // DB Pension P1
+            db_enabled: p1Db.enabled || false,
+            db_pension_income: p1Db.income || 0,
+            db_start_age: p1Db.startAge || 65,
+            db_index_before_retirement: p1Db.indexBefore !== undefined ? p1Db.indexBefore : true,
+            db_index_after_retirement: p1Db.indexAfter || 0,
+            db_index_after_retirement_to_cpi: p1Db.indexAfterToCpi || false,
+            db_cpp_clawback_fraction: p1Db.cppClawbackFraction || 0,
+            db_survivor_benefit_percentage: p1Db.survivorBenefit || 60,
+            pension_plan_type: 'Generic',
+            has_10_year_guarantee: p1Db.hasGuarantee || false,
+            // Assumptions P1 (Individualized)
+            non_registered_growth_capital_gains_pct: p1Adv.nonRegGrowthCapGains || 90,
+            non_registered_dividend_yield_pct: p1Adv.nonRegDivYield || 2.0,
+            non_registered_eligible_dividend_proportion_pct: p1Adv.nonRegEligDiv || 70,
+            lif_conversion_age: p1Adv.lifAge || 71,
+            rrif_conversion_age: p1Adv.rrifAge || 71,
+            enable_rrsp_meltdown: p1Adv.meltdown || false,
         },
         person2_ui: {
-            name: 'Person 2',
-            current_age: (person2Options.p2CurrentAge as number) || p1CurrentAge,
-            retirement_age: (person2Options.p2Retire as number) || p1RetirementAge,
-            death_age: (person2Options.p2DeathAge as number) || p1DeathAge,
-            rrsp: person2Options.p2Rrsp || 0,
-            tfsa: person2Options.p2Tfsa || 0,
+            name: isIndividual ? 'Person 2' : context.getNodeParameter('p2Name', itemIndex) as string,
+            current_age: isIndividual ? 60 : context.getNodeParameter('p2CurrentAge', itemIndex) as number,
+            retirement_age: isIndividual ? 65 : context.getNodeParameter('p2RetirementAge', itemIndex) as number,
+            death_age: isIndividual ? 92 : context.getNodeParameter('p2DeathAge', itemIndex) as number,
+            rrsp: isIndividual ? 0 : context.getNodeParameter('p2Rrsp', itemIndex) as number,
+            tfsa: isIndividual ? 0 : context.getNodeParameter('p2Tfsa', itemIndex) as number,
             non_registered: p2NonReg,
-            lira: person2Options.p2Lira || 0,
+            lira: p2Adv.lira || 0,
             cost_basis: p2CostBasis,
-            rrsp_contribution_room: person2Options.p2RrspContributionRoom || 0,
-            tfsa_contribution_room: person2Options.p2TfsaContributionRoom || 0,
-            cpp_start_age: person2Options.p2CppStartAge || 65,
-            oas_start_age: person2Options.p2OasStartAge || 65,
-            base_cpp_amount: person2Options.p2BaseCppAmount || 0,
-            base_oas_amount: person2Options.p2BaseOasAmount || 0,
-            rrsp_contribution: person2Options.p2RrspContribution || 0,
-            tfsa_contribution: person2Options.p2TfsaContribution || 0,
-            non_registered_contribution: person2Options.p2NonRegisteredContribution || 0,
-            db_enabled: person2Options.p2DbEnabled || false,
-            db_pension_income: person2Options.p2DbPensionIncome || 0,
-            db_start_age: person2Options.p2DbStartAge || 65,
+            rrsp_contribution_room: p2Adv.rrspContributionRoom || 0,
+            tfsa_contribution_room: p2Adv.tfsaContributionRoom || 0,
+            cpp_start_age: p2Adv.cppStartAge || 65,
+            oas_start_age: p2Adv.oasStartAge || 65,
+            base_cpp_amount: p2Adv.baseCppAmount || 17196,
+            base_oas_amount: p2Adv.baseOasAmount || 8876,
+            rrsp_contribution: p2Adv.rrspContribution || 0,
+            tfsa_contribution: p2Adv.tfsaContribution || 0,
+            non_registered_contribution: p2Adv.nonRegisteredContribution || 0,
+            // DB Pension P2
+            db_enabled: p2Db.enabled || false,
+            db_pension_income: p2Db.income || 0,
+            db_start_age: p2Db.startAge || 65,
+            db_index_before_retirement: p2Db.indexBefore !== undefined ? p2Db.indexBefore : true,
+            db_index_after_retirement: p2Db.indexAfter || 0,
+            db_index_after_retirement_to_cpi: p2Db.indexAfterToCpi || false,
+            db_cpp_clawback_fraction: p2Db.cppClawbackFraction || 0,
+            db_survivor_benefit_percentage: p2Db.survivorBenefit || 60,
+            pension_plan_type: 'Generic',
+            has_10_year_guarantee: p2Db.hasGuarantee || false,
+            // Assumptions P2 (Individualized)
+            non_registered_growth_capital_gains_pct: p2Adv.nonRegGrowthCapGains || 90,
+            non_registered_dividend_yield_pct: p2Adv.nonRegDivYield || 2.0,
+            non_registered_eligible_dividend_proportion_pct: p2Adv.nonRegEligDiv || 70,
+            lif_conversion_age: p2Adv.lifAge || 71,
+            rrif_conversion_age: p2Adv.rrifAge || 71,
+            enable_rrsp_meltdown: p2Adv.meltdown || false,
         },
         inputs: {
             expected_returns: expectedReturns,
             cpi: cpi,
             province: province,
             individual: isIndividual,
-            income_split: advancedOptions.incomeSplit !== undefined ? advancedOptions.incomeSplit : !isIndividual,
-            allocation: advancedOptions.allocation || 50,
-            survivor_expense_percent: advancedOptions.survivorExpensePercent || 100,
-            base_tfsa_amount: advancedOptions.baseTfsaAmount || 7000,
+            income_split: globalSettings.incomeSplit !== undefined ? globalSettings.incomeSplit : !isIndividual,
+            allocation: globalSettings.allocation || 50,
+            survivor_expense_percent: globalSettings.survivorExpensePercent || 100,
+            base_tfsa_amount: globalSettings.baseTfsa || 7000,
+            calculate_gis: globalSettings.calculateGis || false,
+            // Hardcoded Monte Carlo Defaults (FP Canada Baseline)
+            return_std_dev: 0.09,
+            cpi_std_dev: 0.012,
+            return_cpi_correlation: -0.05,
+            num_trials: 1000,
+            distribution_model: 'lognormal',
         },
         withdrawal_strategy: {
-            person1: { weights: [{ type: 'fallback', order: ['rrsp', 'non_registered', 'tfsa'] }] },
-            person2: { weights: [{ type: 'fallback', order: ['rrsp', 'non_registered', 'tfsa'] }] },
+            person1: { weights: [{ type: 'fallback', order: getWithdrawalOrder('p1WithdrawalStrategy') }] },
+            person2: { weights: [{ type: 'fallback', order: getWithdrawalOrder('p2WithdrawalStrategy') }] },
         },
     };
 }
 
 export class NowCapital implements INodeType {
     description: INodeTypeDescription = {
+        // ... (omitting strict repetition of properties top matter)
         displayName: 'NowCapital',
         name: 'nowCapital',
         icon: 'file:nowcapital.svg',
@@ -126,6 +178,7 @@ export class NowCapital implements INodeType {
         outputs: ['main'],
         credentials: [{ name: 'nowCapitalApi', required: true }],
         properties: [
+            // ... (keeping existing standard properties)
             {
                 displayName: 'Resource',
                 name: 'resource',
@@ -173,6 +226,13 @@ export class NowCapital implements INodeType {
                 displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
+                displayName: 'Person 1 - Name',
+                name: 'p1Name',
+                type: 'string',
+                default: 'User 1',
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
                 displayName: 'Person 1 - Current Age',
                 name: 'p1CurrentAge',
                 type: 'number',
@@ -215,6 +275,71 @@ export class NowCapital implements INodeType {
                 displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
             {
+                displayName: 'Person 1 - Non-Registered Cost Basis (ACB)',
+                name: 'p1NonRegAcb',
+                type: 'number',
+                default: 0,
+                description: 'Leave 0 to use default (90% of balance)',
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
+                displayName: 'Person 2 - Name',
+                name: 'p2Name',
+                type: 'string',
+                default: 'User 2',
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
+                displayName: 'Person 2 - Current Age',
+                name: 'p2CurrentAge',
+                type: 'number',
+                default: 60,
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
+                displayName: 'Person 2 - Retirement Age',
+                name: 'p2RetirementAge',
+                type: 'number',
+                default: 65,
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
+                displayName: 'Person 2 - Death Age',
+                name: 'p2DeathAge',
+                type: 'number',
+                default: 92,
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
+                displayName: 'Person 2 - RRSP Balance',
+                name: 'p2Rrsp',
+                type: 'number',
+                default: 0,
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
+                displayName: 'Person 2 - TFSA Balance',
+                name: 'p2Tfsa',
+                type: 'number',
+                default: 0,
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
+                displayName: 'Person 2 - Non-Registered Balance',
+                name: 'p2NonRegistered',
+                type: 'number',
+                default: 0,
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
+                displayName: 'Person 2 - Non-Registered Cost Basis (ACB)',
+                name: 'p2NonRegAcb',
+                type: 'number',
+                default: 0,
+                description: 'Leave 0 to use default (90% of balance)',
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+            },
+            {
                 displayName: 'Province',
                 name: 'province',
                 type: 'options',
@@ -244,45 +369,226 @@ export class NowCapital implements INodeType {
                 required: true,
                 displayOptions: { show: { resource: ['plan'], operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
+
+            // --- Advanced Options: Person 1 ---
             {
-                displayName: 'Advanced Options',
-                name: 'advancedOptions',
+                displayName: 'Person 1 - Advanced Options',
+                name: 'p1AdvancedOptions',
                 type: 'collection',
                 placeholder: 'Add Option',
                 default: {},
                 displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
-                    { displayName: 'Annual Non-Reg Contrib', name: 'p1NonRegisteredContribution', type: 'number', default: 0 },
-                    { displayName: 'Annual RRSP Contrib', name: 'p1RrspContribution', type: 'number', default: 0 },
-                    { displayName: 'Annual TFSA Contrib', name: 'p1TfsaContribution', type: 'number', default: 0 },
-                    { displayName: 'Base CPP Amount', name: 'p1BaseCppAmount', type: 'number', default: 17196 },
-                    { displayName: 'Base OAS Amount', name: 'p1BaseOasAmount', type: 'number', default: 8876 },
-                    { displayName: 'CPP Start Age', name: 'p1CppStartAge', type: 'number', default: 65 },
-                    { displayName: 'DB Pension Income', name: 'p1DbPensionIncome', type: 'number', default: 0 },
-                    { displayName: 'DB Start Age', name: 'p1DbStartAge', type: 'number', default: 65 },
-                    { displayName: 'Enable DB Pension', name: 'p1DbEnabled', type: 'boolean', default: false },
-                    { displayName: 'Enable RRSP Meltdown', name: 'p1Meltdown', type: 'boolean', default: false },
-                    { displayName: 'Income Splitting', name: 'incomeSplit', type: 'boolean', default: true },
-                    { displayName: 'OAS Start Age', name: 'p1OasStartAge', type: 'number', default: 65 },
-                    { displayName: 'RRSP Contribution Room', name: 'p1RrspContributionRoom', type: 'number', default: 0 },
-                    { displayName: 'Survivor Expense %', name: 'survivorExpensePercent', type: 'number', default: 100 },
-                    { displayName: 'TFSA Contribution Room', name: 'p1TfsaContributionRoom', type: 'number', default: 0 },
+                    { displayName: 'Annual Non-Reg Contrib', name: 'nonRegisteredContribution', type: 'number', default: 0 },
+                    { displayName: 'Annual RRSP Contrib', name: 'rrspContribution', type: 'number', default: 0 },
+                    { displayName: 'Annual TFSA Contrib', name: 'tfsaContribution', type: 'number', default: 0 },
+                    { displayName: 'Base CPP Amount', name: 'baseCppAmount', type: 'number', default: 17196 },
+                    { displayName: 'Base OAS Amount', name: 'baseOasAmount', type: 'number', default: 8876 },
+                    { displayName: 'CPP Start Age', name: 'cppStartAge', type: 'number', default: 65 },
+                    { displayName: 'Enable RRSP Meltdown', name: 'meltdown', type: 'boolean', default: false },
+                    { displayName: 'LIF Conversion Age', name: 'lifAge', type: 'number', default: 71 },
+                    { displayName: 'LIRA Balance', name: 'lira', type: 'number', default: 0 },
+                    { displayName: 'Non-Reg Dividend Yield %', name: 'nonRegDivYield', type: 'number', default: 2.0 },
+                    { displayName: 'Non-Reg Eligible Div %', name: 'nonRegEligDiv', type: 'number', default: 70 },
+                    { displayName: 'Non-Reg Growth Capital Gains %', name: 'nonRegGrowthCapGains', type: 'number', default: 90 },
+                    { displayName: 'OAS Start Age', name: 'oasStartAge', type: 'number', default: 65 },
+                    { displayName: 'RRIF Conversion Age', name: 'rrifAge', type: 'number', default: 71 },
+                    { displayName: 'RRSP Contribution Room', name: 'rrspContributionRoom', type: 'number', default: 0 },
+                    { displayName: 'TFSA Contribution Room', name: 'tfsaContributionRoom', type: 'number', default: 0 },
                 ],
             },
+
+            // --- Advanced Options: Person 2 (Couple Only) ---
             {
-                displayName: 'Person 2 Options',
-                name: 'person2Options',
+                displayName: 'Person 2 - Advanced Options',
+                name: 'p2AdvancedOptions',
                 type: 'collection',
-                placeholder: 'Add Details',
+                placeholder: 'Add Option',
                 default: {},
                 displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
-                    { displayName: 'Current Age', name: 'p2CurrentAge', type: 'number', default: 60 },
-                    { displayName: 'Death Age', name: 'p2DeathAge', type: 'number', default: 92 },
-                    { displayName: 'Non-Reg', name: 'p2NonRegistered', type: 'number', default: 0 },
-                    { displayName: 'Retirement Age', name: 'p2Retire', type: 'number', default: 65 },
-                    { displayName: 'RRSP', name: 'p2Rrsp', type: 'number', default: 0 },
-                    { displayName: 'TFSA', name: 'p2Tfsa', type: 'number', default: 0 },
+                    { displayName: 'Annual Non-Reg Contrib', name: 'nonRegisteredContribution', type: 'number', default: 0 },
+                    { displayName: 'Annual RRSP Contrib', name: 'rrspContribution', type: 'number', default: 0 },
+                    { displayName: 'Annual TFSA Contrib', name: 'tfsaContribution', type: 'number', default: 0 },
+                    { displayName: 'Base CPP Amount', name: 'baseCppAmount', type: 'number', default: 17196 },
+                    { displayName: 'Base OAS Amount', name: 'baseOasAmount', type: 'number', default: 8876 },
+                    { displayName: 'CPP Start Age', name: 'cppStartAge', type: 'number', default: 65 },
+                    { displayName: 'Enable RRSP Meltdown', name: 'meltdown', type: 'boolean', default: false },
+                    { displayName: 'LIF Conversion Age', name: 'lifAge', type: 'number', default: 71 },
+                    { displayName: 'LIRA Balance', name: 'lira', type: 'number', default: 0 },
+                    { displayName: 'Non-Reg Dividend Yield %', name: 'nonRegDivYield', type: 'number', default: 2.0 },
+                    { displayName: 'Non-Reg Eligible Div %', name: 'nonRegEligDiv', type: 'number', default: 70 },
+                    { displayName: 'Non-Reg Growth Capital Gains %', name: 'nonRegGrowthCapGains', type: 'number', default: 90 },
+                    { displayName: 'OAS Start Age', name: 'oasStartAge', type: 'number', default: 65 },
+                    { displayName: 'RRIF Conversion Age', name: 'rrifAge', type: 'number', default: 71 },
+                    { displayName: 'RRSP Contribution Room', name: 'rrspContributionRoom', type: 'number', default: 0 },
+                    { displayName: 'TFSA Contribution Room', name: 'tfsaContributionRoom', type: 'number', default: 0 },
+                ],
+            },
+
+            // --- DB Pension Details: Person 1 ---
+            {
+                displayName: 'Person 1 - DB Pension',
+                name: 'p1DbPension',
+                type: 'collection',
+                placeholder: 'Add DB Details',
+                default: {},
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                options: [
+                    { displayName: 'Annual Income', name: 'income', type: 'number', default: 0 },
+                    { displayName: 'CPP Clawback Fraction', name: 'cppClawbackFraction', type: 'number', default: 0, description: '0 to 1' },
+                    { displayName: 'Enable DB Pension', name: 'enabled', type: 'boolean', default: false },
+                    { displayName: 'Guarantee Period (10yr)', name: 'hasGuarantee', type: 'boolean', default: false },
+                    { displayName: 'Has Bridge Benefit', name: 'hasBridge', type: 'boolean', default: false },
+                    { displayName: 'Index After Retirement %', name: 'indexAfter', type: 'number', default: 0 },
+                    { displayName: 'Index After Retirement to CPI', name: 'indexAfterToCpi', type: 'boolean', default: false },
+                    { displayName: 'Index Before Retirement', name: 'indexBefore', type: 'boolean', default: true },
+                    { displayName: 'Is Survivor Pension?', name: 'isSurvivor', type: 'boolean', default: false },
+                    { displayName: 'Start Age', name: 'startAge', type: 'number', default: 65 },
+                    { displayName: 'Survivor Benefit %', name: 'survivorBenefit', type: 'number', default: 60 },
+                ],
+            },
+
+            // --- DB Pension Details: Person 2 (Couple Only) ---
+            {
+                displayName: 'Person 2 - DB Pension',
+                name: 'p2DbPension',
+                type: 'collection',
+                placeholder: 'Add DB Details',
+                default: {},
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                options: [
+                    { displayName: 'Annual Income', name: 'income', type: 'number', default: 0 },
+                    { displayName: 'CPP Clawback Fraction', name: 'cppClawbackFraction', type: 'number', default: 0, description: '0 to 1' },
+                    { displayName: 'Enable DB Pension', name: 'enabled', type: 'boolean', default: false },
+                    { displayName: 'Guarantee Period (10yr)', name: 'hasGuarantee', type: 'boolean', default: false },
+                    { displayName: 'Has Bridge Benefit', name: 'hasBridge', type: 'boolean', default: false },
+                    { displayName: 'Index After Retirement %', name: 'indexAfter', type: 'number', default: 0 },
+                    { displayName: 'Index After Retirement to CPI', name: 'indexAfterToCpi', type: 'boolean', default: false },
+                    { displayName: 'Index Before Retirement', name: 'indexBefore', type: 'boolean', default: true },
+                    { displayName: 'Is Survivor Pension?', name: 'isSurvivor', type: 'boolean', default: false },
+                    { displayName: 'Start Age', name: 'startAge', type: 'number', default: 65 },
+                    { displayName: 'Survivor Benefit %', name: 'survivorBenefit', type: 'number', default: 60 },
+                ],
+            },
+
+            // --- Global/Investment Assumptions ---
+            {
+                displayName: 'Global Settings',
+                name: 'globalSettings',
+                type: 'collection',
+                placeholder: 'Assumptions & Settings',
+                default: {},
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                options: [
+                    { displayName: 'Base TFSA Room', name: 'baseTfsa', type: 'number', default: 7000 },
+                    { displayName: 'Calculate GIS', name: 'calculateGis', type: 'boolean', default: false },
+                    { displayName: 'Expense Allocation %', name: 'allocation', type: 'number', default: 50, description: 'Split of expenses between spouses' },
+                    { displayName: 'Income Splitting', name: 'incomeSplit', type: 'boolean', default: true },
+                    { displayName: 'Survivor Expense %', name: 'survivorExpensePercent', type: 'number', default: 100 },
+                ],
+            },
+            // --- Withdrawal Strategy: Person 1 ---
+            {
+                displayName: 'Person 1 - Withdrawal Order',
+                name: 'p1WithdrawalStrategy',
+                type: 'fixedCollection',
+                typeOptions: { multipleValues: false },
+                default: {},
+                placeholder: 'Custom Order',
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                options: [
+                    {
+                        displayName: 'Order',
+                        name: 'order',
+                        values: [
+                            {
+                                displayName: 'First Account',
+                                name: 'first',
+                                type: 'options',
+                                options: [
+                                    { name: 'RRSP / RRIF', value: 'rrsp' },
+                                    { name: 'TFSA', value: 'tfsa' },
+                                    { name: 'Non-Registered', value: 'non_registered' },
+                                ],
+                                default: 'rrsp',
+                            },
+                            {
+                                displayName: 'Second Account',
+                                name: 'second',
+                                type: 'options',
+                                options: [
+                                    { name: 'RRSP / RRIF', value: 'rrsp' },
+                                    { name: 'TFSA', value: 'tfsa' },
+                                    { name: 'Non-Registered', value: 'non_registered' },
+                                ],
+                                default: 'non_registered',
+                            },
+                            {
+                                displayName: 'Third Account',
+                                name: 'third',
+                                type: 'options',
+                                options: [
+                                    { name: 'RRSP / RRIF', value: 'rrsp' },
+                                    { name: 'TFSA', value: 'tfsa' },
+                                    { name: 'Non-Registered', value: 'non_registered' },
+                                ],
+                                default: 'tfsa',
+                            },
+                        ],
+                    },
+                ],
+            },
+
+            // --- Withdrawal Strategy: Person 2 (Couple Only) ---
+            {
+                displayName: 'Person 2 - Withdrawal Order',
+                name: 'p2WithdrawalStrategy',
+                type: 'fixedCollection',
+                typeOptions: { multipleValues: false },
+                default: {},
+                placeholder: 'Custom Order',
+                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                options: [
+                    {
+                        displayName: 'Order',
+                        name: 'order',
+                        values: [
+                            {
+                                displayName: 'First Account',
+                                name: 'first',
+                                type: 'options',
+                                options: [
+                                    { name: 'RRSP / RRIF', value: 'rrsp' },
+                                    { name: 'TFSA', value: 'tfsa' },
+                                    { name: 'Non-Registered', value: 'non_registered' },
+                                ],
+                                default: 'rrsp',
+                            },
+                            {
+                                displayName: 'Second Account',
+                                name: 'second',
+                                type: 'options',
+                                options: [
+                                    { name: 'RRSP / RRIF', value: 'rrsp' },
+                                    { name: 'TFSA', value: 'tfsa' },
+                                    { name: 'Non-Registered', value: 'non_registered' },
+                                ],
+                                default: 'non_registered',
+                            },
+                            {
+                                displayName: 'Third Account',
+                                name: 'third',
+                                type: 'options',
+                                options: [
+                                    { name: 'RRSP / RRIF', value: 'rrsp' },
+                                    { name: 'TFSA', value: 'tfsa' },
+                                    { name: 'Non-Registered', value: 'non_registered' },
+                                ],
+                                default: 'tfsa',
+                            },
+                        ],
+                    },
                 ],
             },
         ],

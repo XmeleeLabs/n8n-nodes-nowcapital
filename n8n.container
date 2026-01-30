@@ -1,0 +1,15 @@
+[Unit]
+Description=n8n Workflow Automation Container
+
+[Container]
+ContainerName=n8n
+Image=docker.io/n8nio/n8n:latest
+PublishPort=5678:5678
+Volume=n8n_data:/home/node/.n8n
+Environment=N8N_SECURE_COOKIE=false
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
