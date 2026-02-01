@@ -144,9 +144,9 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): Calcul
             cpi: cpi,
             province: province,
             individual: isIndividual,
-            income_split: globalSettings.incomeSplit !== undefined ? globalSettings.incomeSplit : !isIndividual,
+            income_split: globalSettings.incomeSplit !== undefined ? globalSettings.incomeSplit : false,
             allocation: globalSettings.allocation || 50,
-            survivor_expense_percent: globalSettings.survivorExpensePercent || 100,
+            survivor_expense_percent: globalSettings.survivorExpensePercent || 80,
             base_tfsa_amount: globalSettings.baseTfsa || 7000,
             calculate_gis: globalSettings.calculateGis || false,
             // Hardcoded Monte Carlo Defaults (FP Canada Baseline)
@@ -484,8 +484,8 @@ export class NowCapital implements INodeType {
                     { displayName: 'Base TFSA Room', name: 'baseTfsa', type: 'number', default: 7000 },
                     { displayName: 'Calculate GIS', name: 'calculateGis', type: 'boolean', default: false },
                     { displayName: 'Expense Allocation %', name: 'allocation', type: 'number', default: 50, description: 'Split of expenses between spouses' },
-                    { displayName: 'Income Splitting', name: 'incomeSplit', type: 'boolean', default: true },
-                    { displayName: 'Survivor Expense %', name: 'survivorExpensePercent', type: 'number', default: 100 },
+                    { displayName: 'Income Splitting', name: 'incomeSplit', type: 'boolean', default: false },
+                    { displayName: 'Survivor Expense %', name: 'survivorExpensePercent', type: 'number', default: 80 },
                 ],
             },
             // --- Withdrawal Strategy: Person 1 ---
