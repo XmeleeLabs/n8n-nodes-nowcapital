@@ -618,9 +618,9 @@ export class NowCapital implements INodeType {
                 default: {},
                 displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
-                    { displayName: 'Enable DB Pension', name: 'enabled', type: 'boolean', default: false },
                     { displayName: 'Annual Income', name: 'income', type: 'number', default: 0 },
                     { displayName: 'CPP Integration (Bridge Benefit) %', name: 'cppClawbackFraction', type: 'number', default: 0, description: 'Percentage (0-100)' },
+                    { displayName: 'Enable DB Pension', name: 'enabled', type: 'boolean', default: false },
                     { displayName: 'Guarantee Period (10yr)', name: 'hasGuarantee', type: 'boolean', default: false },
                     { displayName: 'Index After Retirement %', name: 'indexAfter', type: 'number', default: 0 },
                     { displayName: 'Index After Retirement to CPI', name: 'indexAfterToCpi', type: 'boolean', default: false },
@@ -643,6 +643,13 @@ export class NowCapital implements INodeType {
                 displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
                     {
+                        displayName: 'Non-Registered (%)',
+                        name: 'nonRegWeight',
+                        type: 'number',
+                        default: 0,
+                        description: 'Percentage of withdrawal to take from Non-Registered initially',
+                    },
+                    {
                         displayName: 'RRSP / RRIF (%)',
                         name: 'rrspWeight',
                         type: 'number',
@@ -655,13 +662,6 @@ export class NowCapital implements INodeType {
                         type: 'number',
                         default: 0,
                         description: 'Percentage of withdrawal to take from TFSA initially',
-                    },
-                    {
-                        displayName: 'Non-Registered (%)',
-                        name: 'nonRegWeight',
-                        type: 'number',
-                        default: 0,
-                        description: 'Percentage of withdrawal to take from Non-Registered initially',
                     },
                 ],
             },
@@ -727,6 +727,13 @@ export class NowCapital implements INodeType {
                 displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
                     {
+                        displayName: 'Non-Registered (%)',
+                        name: 'nonRegWeight',
+                        type: 'number',
+                        default: 0,
+                        description: 'Percentage of withdrawal to take from Non-Registered initially',
+                    },
+                    {
                         displayName: 'RRSP / RRIF (%)',
                         name: 'rrspWeight',
                         type: 'number',
@@ -739,13 +746,6 @@ export class NowCapital implements INodeType {
                         type: 'number',
                         default: 0,
                         description: 'Percentage of withdrawal to take from TFSA initially',
-                    },
-                    {
-                        displayName: 'Non-Registered (%)',
-                        name: 'nonRegWeight',
-                        type: 'number',
-                        default: 0,
-                        description: 'Percentage of withdrawal to take from Non-Registered initially',
                     },
                 ],
             },
