@@ -28,32 +28,34 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): Calcul
     // Helper to get collection parameters safely
     const getCollection = (paramName: string) => context.getNodeParameter(paramName, itemIndex, {}) as Record<string, unknown>;
 
+    const additionalOptions = context.getNodeParameter('additionalOptions', itemIndex, {}) as Record<string, unknown>;
+
     // Common Inputs - use safe defaults if operation is monteCarlo (where these are hidden)
     let expectedReturns = 0;
     let cpi = 0;
     
     if (operation !== 'monteCarlo' && operation !== 'getSimulationStatus' && operation !== 'getSimulationResult') {
-        expectedReturns = context.getNodeParameter('expectedReturns', itemIndex) as number;
-        cpi = context.getNodeParameter('cpi', itemIndex) as number;
+        expectedReturns = additionalOptions.expectedReturns !== undefined ? additionalOptions.expectedReturns as number : 5.0;
+        cpi = additionalOptions.cpi !== undefined ? additionalOptions.cpi as number : 2.5;
     }
     
     const province = context.getNodeParameter('province', itemIndex) as string;
 
     // Global Settings (Top Level)
-    const baseTfsa = context.getNodeParameter('baseTfsa', itemIndex) as number;
-    const calculateGis = context.getNodeParameter('calculateGis', itemIndex) as boolean;
-    const allocation = context.getNodeParameter('allocation', itemIndex) as number;
-    const incomeSplit = context.getNodeParameter('incomeSplit', itemIndex) as boolean;
-    const survivorExpensePercent = context.getNodeParameter('survivorExpensePercent', itemIndex) as number;
+    const baseTfsa = additionalOptions.baseTfsa !== undefined ? additionalOptions.baseTfsa as number : 7000;
+    const calculateGis = additionalOptions.calculateGis !== undefined ? additionalOptions.calculateGis as boolean : false;
+    const allocation = additionalOptions.allocation !== undefined ? additionalOptions.allocation as number : 50;
+    const incomeSplit = additionalOptions.incomeSplit !== undefined ? additionalOptions.incomeSplit as boolean : false;
+    const survivorExpensePercent = additionalOptions.survivorExpensePercent !== undefined ? additionalOptions.survivorExpensePercent as number : 80;
 
     // Monte Carlo Specific
     let enableBeltTightening = false;
     if (operation === 'monteCarlo') {
-        enableBeltTightening = context.getNodeParameter('enableBeltTightening', itemIndex) as boolean;
+        enableBeltTightening = additionalOptions.enableBeltTightening !== undefined ? additionalOptions.enableBeltTightening as boolean : false;
     }
 
     // Person 1 Data
-    const p1Adv = getCollection('p1AdvancedOptions');
+    const p1Adv = getCollection('p1AdditionalFields');
     const p1Db = getCollection('p1DbPension');
     const p1NonReg = context.getNodeParameter('p1NonRegistered', itemIndex) as number || 0;
     const p1NonRegAcb = context.getNodeParameter('p1NonRegAcb', itemIndex) as number || 0;
@@ -62,7 +64,7 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): Calcul
     const p1CostBasis = p1NonRegAcb !== 0 ? p1NonRegAcb : (p1NonReg * p1DefaultCostBasisPct);
 
     // Person 2 Data (or defaults if individual)
-    const p2Adv = isIndividual ? {} : getCollection('p2AdvancedOptions');
+    const p2Adv = isIndividual ? {} : getCollection('p2AdditionalFields');
     const p2Db = isIndividual ? {} : getCollection('p2DbPension');
     const p2NonReg = isIndividual ? 0 : (context.getNodeParameter('p2NonRegistered', itemIndex) as number || 0);
     const p2NonRegAcb = isIndividual ? 0 : (context.getNodeParameter('p2NonRegAcb', itemIndex) as number || 0);
@@ -104,12 +106,12 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): Calcul
             tfsa_contribution_room: p1Adv.tfsaContributionRoom || 0,
             
             // P1 Top Level Overrides
-            cpp_start_age: context.getNodeParameter('p1CppStartAge', itemIndex) as number,
-            oas_start_age: context.getNodeParameter('p1OasStartAge', itemIndex) as number,
-            base_cpp_amount: context.getNodeParameter('p1BaseCppAmount', itemIndex) as number,
-            base_oas_amount: context.getNodeParameter('p1BaseOasAmount', itemIndex) as number,
-            enable_rrsp_meltdown: context.getNodeParameter('p1Meltdown', itemIndex) as boolean,
-            rrif_conversion_age: context.getNodeParameter('p1RrifAge', itemIndex) as number,
+            cpp_start_age: p1Adv.p1CppStartAge !== undefined ? p1Adv.p1CppStartAge as number : 65,
+            oas_start_age: p1Adv.p1OasStartAge !== undefined ? p1Adv.p1OasStartAge as number : 65,
+            base_cpp_amount: p1Adv.p1BaseCppAmount !== undefined ? p1Adv.p1BaseCppAmount as number : 0,
+            base_oas_amount: p1Adv.p1BaseOasAmount !== undefined ? p1Adv.p1BaseOasAmount as number : 8876,
+            enable_rrsp_meltdown: p1Adv.p1Meltdown !== undefined ? p1Adv.p1Meltdown as boolean : false,
+            rrif_conversion_age: p1Adv.p1RrifAge !== undefined ? p1Adv.p1RrifAge as number : 71,
 
             rrsp_contribution: p1Adv.rrspContribution || 0,
             tfsa_contribution: p1Adv.tfsaContribution || 0,
@@ -145,12 +147,12 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): Calcul
             tfsa_contribution_room: p2Adv.tfsaContributionRoom || 0,
             
             // P2 Top Level Overrides (Defaults if individual)
-            cpp_start_age: isIndividual ? 65 : context.getNodeParameter('p2CppStartAge', itemIndex) as number,
-            oas_start_age: isIndividual ? 65 : context.getNodeParameter('p2OasStartAge', itemIndex) as number,
-            base_cpp_amount: isIndividual ? 0 : context.getNodeParameter('p2BaseCppAmount', itemIndex) as number,
-            base_oas_amount: isIndividual ? 8876 : context.getNodeParameter('p2BaseOasAmount', itemIndex) as number,
-            enable_rrsp_meltdown: isIndividual ? false : context.getNodeParameter('p2Meltdown', itemIndex) as boolean,
-            rrif_conversion_age: isIndividual ? 71 : context.getNodeParameter('p2RrifAge', itemIndex) as number,
+            cpp_start_age: isIndividual ? 65 : (p2Adv.p2CppStartAge !== undefined ? p2Adv.p2CppStartAge as number : 65),
+            oas_start_age: isIndividual ? 65 : (p2Adv.p2OasStartAge !== undefined ? p2Adv.p2OasStartAge as number : 65),
+            base_cpp_amount: isIndividual ? 0 : (p2Adv.p2BaseCppAmount !== undefined ? p2Adv.p2BaseCppAmount as number : 0),
+            base_oas_amount: isIndividual ? 8876 : (p2Adv.p2BaseOasAmount !== undefined ? p2Adv.p2BaseOasAmount as number : 8876),
+            enable_rrsp_meltdown: isIndividual ? false : (p2Adv.p2Meltdown !== undefined ? p2Adv.p2Meltdown as boolean : false),
+            rrif_conversion_age: isIndividual ? 71 : (p2Adv.p2RrifAge !== undefined ? p2Adv.p2RrifAge as number : 71),
 
             rrsp_contribution: p2Adv.rrspContribution || 0,
             tfsa_contribution: p2Adv.tfsaContribution || 0,
@@ -335,48 +337,7 @@ export class NowCapital implements INodeType {
                 description: 'Leave 0 to use default (90% of balance)',
                 displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
-            {
-                displayName: 'Person 1 - Base CPP Amount',
-                name: 'p1BaseCppAmount',
-                type: 'number',
-                default: 0,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 1 - Base OAS Amount',
-                name: 'p1BaseOasAmount',
-                type: 'number',
-                default: 8876,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 1 - CPP Start Age',
-                name: 'p1CppStartAge',
-                type: 'number',
-                default: 65,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 1 - OAS Start Age',
-                name: 'p1OasStartAge',
-                type: 'number',
-                default: 65,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 1 - RRIF Conversion Age',
-                name: 'p1RrifAge',
-                type: 'number',
-                default: 71,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 1 - Enable RRSP Meltdown',
-                name: 'p1Meltdown',
-                type: 'boolean',
-                default: false,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
+
             {
                 displayName: 'Person 2 - Name',
                 name: 'p2Name',
@@ -434,48 +395,7 @@ export class NowCapital implements INodeType {
                 description: 'Leave 0 to use default (90% of balance)',
                 displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
-            {
-                displayName: 'Person 2 - Base CPP Amount',
-                name: 'p2BaseCppAmount',
-                type: 'number',
-                default: 0,
-                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 2 - Base OAS Amount',
-                name: 'p2BaseOasAmount',
-                type: 'number',
-                default: 8876,
-                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 2 - CPP Start Age',
-                name: 'p2CppStartAge',
-                type: 'number',
-                default: 65,
-                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 2 - OAS Start Age',
-                name: 'p2OasStartAge',
-                type: 'number',
-                default: 65,
-                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 2 - RRIF Conversion Age',
-                name: 'p2RrifAge',
-                type: 'number',
-                default: 71,
-                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Person 2 - Enable RRSP Meltdown',
-                name: 'p2Meltdown',
-                type: 'boolean',
-                default: false,
-                displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
+
             {
                 displayName: 'Province',
                 name: 'province',
@@ -484,56 +404,7 @@ export class NowCapital implements INodeType {
                 default: 'ON',
                 displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
-            {
-                displayName: 'Expected Returns (%)',
-                name: 'expectedReturns',
-                type: 'number',
-                default: 5.0,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult', 'monteCarlo'] } },
-            },
-            {
-                displayName: 'Inflation Rate (%)',
-                name: 'cpi',
-                type: 'number',
-                default: 2.5,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult', 'monteCarlo'] } },
-            },
-            {
-                displayName: 'Base TFSA Room',
-                name: 'baseTfsa',
-                type: 'number',
-                default: 7000,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Calculate GIS',
-                name: 'calculateGis',
-                type: 'boolean',
-                default: false,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Expense Allocation %',
-                name: 'allocation',
-                type: 'number',
-                default: 50,
-                description: 'Split of expenses between spouses',
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Income Splitting',
-                name: 'incomeSplit',
-                type: 'boolean',
-                default: false,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
-            {
-                displayName: 'Survivor Expense %',
-                name: 'survivorExpensePercent',
-                type: 'number',
-                default: 80,
-                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
-            },
+
             {
                 displayName: 'Job ID',
                 name: 'jobId',
@@ -543,45 +414,77 @@ export class NowCapital implements INodeType {
                 displayOptions: { show: { resource: ['plan'], operation: ['getSimulationStatus', 'getSimulationResult'] } },
             },
 
-            // --- Advanced Options: Person 1 ---
+            // --- Global Assumptions ---
             {
-                displayName: 'Person 1 - Advanced Options',
-                name: 'p1AdvancedOptions',
+                displayName: 'Additional Options',
+                name: 'additionalOptions',
                 type: 'collection',
                 placeholder: 'Add Option',
+                default: {},
+                displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
+                options: [
+                    { displayName: 'Base TFSA Room', name: 'baseTfsa', type: 'number', default: 7000 },
+                    { displayName: 'Calculate GIS', name: 'calculateGis', type: 'boolean', default: false },
+                    { displayName: 'Enable Belt Tightening', name: 'enableBeltTightening', type: 'boolean', default: false, displayOptions: { show: { '/operation': ['monteCarlo'] } }, description: 'Whether to forgo inflation adjustments on expenses after negative return years' },
+                    { displayName: 'Expected Returns (%)', name: 'expectedReturns', type: 'number', default: 5.0, displayOptions: { hide: { '/operation': ['monteCarlo'] } } },
+                    { displayName: 'Expense Allocation %', name: 'allocation', type: 'number', default: 50, description: 'Split of expenses between spouses' },
+                    { displayName: 'Income Splitting', name: 'incomeSplit', type: 'boolean', default: false },
+                    { displayName: 'Inflation Rate (%)', name: 'cpi', type: 'number', default: 2.5, displayOptions: { hide: { '/operation': ['monteCarlo'] } } },
+                    { displayName: 'Survivor Expense %', name: 'survivorExpensePercent', type: 'number', default: 80 },
+                ],
+            },
+
+            // --- Additional Fields: Person 1 ---
+            {
+                displayName: 'Person 1 - Additional Fields',
+                name: 'p1AdditionalFields',
+                type: 'collection',
+                placeholder: 'Add Field',
                 default: {},
                 displayOptions: { show: { resource: ['plan'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
                     { displayName: 'Annual Non-Reg Contrib', name: 'nonRegisteredContribution', type: 'number', default: 0 },
                     { displayName: 'Annual RRSP Contrib', name: 'rrspContribution', type: 'number', default: 0 },
                     { displayName: 'Annual TFSA Contrib', name: 'tfsaContribution', type: 'number', default: 0 },
+                    { displayName: 'Base CPP Amount', name: 'p1BaseCppAmount', type: 'number', default: 0 },
+                    { displayName: 'Base OAS Amount', name: 'p1BaseOasAmount', type: 'number', default: 8876 },
+                    { displayName: 'CPP Start Age', name: 'p1CppStartAge', type: 'number', default: 65 },
+                    { displayName: 'Enable RRSP Meltdown', name: 'p1Meltdown', type: 'boolean', default: false },
                     { displayName: 'LIF Conversion Age', name: 'lifAge', type: 'number', default: 71 },
                     { displayName: 'LIRA Balance', name: 'lira', type: 'number', default: 0 },
                     { displayName: 'Non-Reg Dividend Yield %', name: 'nonRegDivYield', type: 'number', default: 0 },
                     { displayName: 'Non-Reg Eligible Div %', name: 'nonRegEligDiv', type: 'number', default: 70 },
                     { displayName: 'Non-Reg Growth Capital Gains %', name: 'nonRegGrowthCapGains', type: 'number', default: 100 },
+                    { displayName: 'OAS Start Age', name: 'p1OasStartAge', type: 'number', default: 65 },
+                    { displayName: 'RRIF Conversion Age', name: 'p1RrifAge', type: 'number', default: 71 },
                     { displayName: 'RRSP Contribution Room', name: 'rrspContributionRoom', type: 'number', default: 0 },
                     { displayName: 'TFSA Contribution Room', name: 'tfsaContributionRoom', type: 'number', default: 0 },
                 ],
             },
 
-            // --- Advanced Options: Person 2 (Couple Only) ---
+            // --- Additional Fields: Person 2 (Couple Only) ---
             {
-                displayName: 'Person 2 - Advanced Options',
-                name: 'p2AdvancedOptions',
+                displayName: 'Person 2 - Additional Fields',
+                name: 'p2AdditionalFields',
                 type: 'collection',
-                placeholder: 'Add Option',
+                placeholder: 'Add Field',
                 default: {},
                 displayOptions: { show: { resource: ['plan'], scenarioType: ['couple'] }, hide: { operation: ['getSimulationStatus', 'getSimulationResult'] } },
                 options: [
                     { displayName: 'Annual Non-Reg Contrib', name: 'nonRegisteredContribution', type: 'number', default: 0 },
                     { displayName: 'Annual RRSP Contrib', name: 'rrspContribution', type: 'number', default: 0 },
                     { displayName: 'Annual TFSA Contrib', name: 'tfsaContribution', type: 'number', default: 0 },
+                    { displayName: 'Base CPP Amount', name: 'p2BaseCppAmount', type: 'number', default: 0 },
+                    { displayName: 'Base OAS Amount', name: 'p2BaseOasAmount', type: 'number', default: 8876 },
+                    { displayName: 'CPP Start Age', name: 'p2CppStartAge', type: 'number', default: 65 },
+                    { displayName: 'Enable RRSP Meltdown', name: 'p2Meltdown', type: 'boolean', default: false },
                     { displayName: 'LIF Conversion Age', name: 'lifAge', type: 'number', default: 71 },
                     { displayName: 'LIRA Balance', name: 'lira', type: 'number', default: 0 },
                     { displayName: 'Non-Reg Dividend Yield %', name: 'nonRegDivYield', type: 'number', default: 0 },
                     { displayName: 'Non-Reg Eligible Div %', name: 'nonRegEligDiv', type: 'number', default: 70 },
                     { displayName: 'Non-Reg Growth Capital Gains %', name: 'nonRegGrowthCapGains', type: 'number', default: 100 },
+                    { displayName: 'OAS Start Age', name: 'p2OasStartAge', type: 'number', default: 65 },
+                    { displayName: 'RRIF Conversion Age', name: 'p2RrifAge', type: 'number', default: 71 },
                     { displayName: 'RRSP Contribution Room', name: 'rrspContributionRoom', type: 'number', default: 0 },
                     { displayName: 'TFSA Contribution Room', name: 'tfsaContributionRoom', type: 'number', default: 0 },
                 ],
@@ -818,19 +721,17 @@ export class NowCapital implements INodeType {
                     const jobId = this.getNodeParameter('jobId', i) as string;
 
                     // 1. Check status of the current ID
-                    const statusResponse = await this.helpers.httpRequest({
+                    const statusResponse = await this.helpers.httpRequestWithAuthentication.call(this, 'nowCapitalApi', {
                         method: 'GET',
                         url: `${baseUrl}/simulations/status/${jobId}`,
-                        headers: { 'x-api-key': credentials.apiKey as string },
                         json: true,
                     });
 
                     // 2. If Success, check if it's a handover to an orchestrator
                     if (statusResponse.status === 'SUCCESS') {
-                        const resultResponse = await this.helpers.httpRequest({
+                        const resultResponse = await this.helpers.httpRequestWithAuthentication.call(this, 'nowCapitalApi', {
                             method: 'GET',
                             url: `${baseUrl}/simulations/result/${jobId}`,
-                            headers: { 'x-api-key': credentials.apiKey as string },
                             json: true,
                         });
 
@@ -840,10 +741,9 @@ export class NowCapital implements INodeType {
                             // The user's original task is "Success" (handed off), but the simulation is still running.
                             // We poll the SUB-ID to give the user the REAL status of their plan.
                             if (operation === 'getSimulationStatus') {
-                                response = await this.helpers.httpRequest({
+                                response = await this.helpers.httpRequestWithAuthentication.call(this, 'nowCapitalApi', {
                                     method: 'GET',
                                     url: `${baseUrl}/simulations/status/${subId}`,
-                                    headers: { 'x-api-key': credentials.apiKey as string },
                                     json: true,
                                 });
                                 // Keep the original IDs for reference
@@ -851,10 +751,9 @@ export class NowCapital implements INodeType {
                                 response.sub_task_id = subId;
                             } else {
                                 // Get Result: Fetch the ACTUAL math results from the sub-task
-                                response = await this.helpers.httpRequest({
+                                response = await this.helpers.httpRequestWithAuthentication.call(this, 'nowCapitalApi', {
                                     method: 'GET',
                                     url: `${baseUrl}/simulations/result/${subId}`,
-                                    headers: { 'x-api-key': credentials.apiKey as string },
                                     json: true,
                                 });
                                 response.original_task_id = jobId;
@@ -884,11 +783,11 @@ export class NowCapital implements INodeType {
                         operation === 'calculateMaxSpendWithYearlyData' ? 'calculate-max-spend-with-yearly-data' :
                             operation === 'calculateWithTargetSpend' ? 'calculate-with-target-spend' : 'monte-carlo';
 
-                    response = await this.helpers.httpRequest({
+                    response = await this.helpers.httpRequestWithAuthentication.call(this, 'nowCapitalApi', {
                         method: 'POST',
                         url: `${baseUrl}/${endpoint}`,
                         body: payload,
-                        headers: { 'Content-Type': 'application/json', 'x-api-key': credentials.apiKey as string },
+                        headers: { 'Content-Type': 'application/json' },
                         json: true,
                     });
                 }
