@@ -60,8 +60,6 @@ const context = {
 try {
     const payload = constructPayload(context, 0);
 
-    console.log('Generated Payload:', JSON.stringify(payload, null, 2));
-
     // Assertions
     if (payload.person1_ui.name !== 'Alice') throw new Error('Person 1 Name mismatch');
     if (payload.person2_ui.name !== 'Bob') throw new Error('Person 2 Name mismatch');
@@ -91,9 +89,7 @@ try {
     if (payload.inputs.return_std_dev !== 0.09) throw new Error('Monte Carlo return_std_dev mismatch');
     if (payload.inputs.num_trials !== 1000) throw new Error('Monte Carlo num_trials mismatch');
 
-    console.log('✅ TEST PASSED: Payload constructed correctly matching specific verification criteria.');
 } catch (e) {
-    console.error('❌ TEST FAILED:', e);
     // eslint-disable-next-line n8n/no-restricted-globals
     throw e;
 }
