@@ -1,4 +1,3 @@
-/*
 import { IExecuteFunctions } from 'n8n-workflow';
 import { constructPayload } from '../nodes/NowCapital/NowCapital.node';
 
@@ -57,40 +56,33 @@ const context = {
     }
 } as unknown as IExecuteFunctions;
 
-try {
-    const payload = constructPayload(context, 0);
+const payload = constructPayload(context, 0);
 
-    // Assertions
-    if (payload.person1_ui.name !== 'Alice') throw new Error('Person 1 Name mismatch');
-    if (payload.person2_ui.name !== 'Bob') throw new Error('Person 2 Name mismatch');
+// Assertions
+if (payload.person1_ui.name !== 'Alice') throw new Error('Person 1 Name mismatch');
+if (payload.person2_ui.name !== 'Bob') throw new Error('Person 2 Name mismatch');
 
-    // ACB Logic Check
-    // P1: Explicit 15000
-    if (payload.person1_ui.cost_basis !== 15000) throw new Error(`P1 Cost Basis mismatch: ${payload.person1_ui.cost_basis} (expected 15000)`);
-    // P2: Default calc: 10000 * 0.90 = 9000
-    if (payload.person2_ui.cost_basis !== 9000) throw new Error(`P2 Cost Basis mismatch: ${payload.person2_ui.cost_basis} (expected 9000)`);
+// ACB Logic Check
+// P1: Explicit 15000
+if (payload.person1_ui.cost_basis !== 15000) throw new Error(`P1 Cost Basis mismatch: ${payload.person1_ui.cost_basis} (expected 15000)`);
+// P2: Default calc: 10000 * 0.90 = 9000
+if (payload.person2_ui.cost_basis !== 9000) throw new Error(`P2 Cost Basis mismatch: ${payload.person2_ui.cost_basis} (expected 9000)`);
 
-    // Individualized Assumptions Check
-    if (payload.person1_ui.lif_conversion_age !== 72) throw new Error('P1 LIF Age mismatch (should be 72)');
-    if (payload.person2_ui.lif_conversion_age !== 71) throw new Error('P2 LIF Age default mismatch (should be 71)');
+// Individualized Assumptions Check
+if (payload.person1_ui.lif_conversion_age !== 72) throw new Error('P1 LIF Age mismatch (should be 72)');
+if (payload.person2_ui.lif_conversion_age !== 71) throw new Error('P2 LIF Age default mismatch (should be 71)');
 
-    // Global Setting Check
-    if (payload.inputs.base_tfsa_amount !== 8000) throw new Error('Base TFSA global setting mismatch');
+// Global Setting Check
+if (payload.inputs.base_tfsa_amount !== 8000) throw new Error('Base TFSA global setting mismatch');
 
-    // DB Pension Check
-    if (payload.person1_ui.db_enabled !== true) throw new Error('Person 1 DB Pension enabled mismatch');
-    if (payload.person1_ui.db_pension_income !== 20000) throw new Error('Person 1 DB Pension income mismatch');
+// DB Pension Check
+if (payload.person1_ui.db_enabled !== true) throw new Error('Person 1 DB Pension enabled mismatch');
+if (payload.person1_ui.db_pension_income !== 20000) throw new Error('Person 1 DB Pension income mismatch');
 
-    // Withdrawal Strategy Check
-    const p1Strat = (payload.withdrawal_strategy.person1 as { weights: Array<{ order: string[] }> }).weights[0].order;
-    if (p1Strat[0] !== 'tfsa' || p1Strat[1] !== 'rrsp') throw new Error(`Person 1 Withdrawal Strategy mismatch: ${p1Strat}`);
+// Withdrawal Strategy Check
+const p1Strat = (payload.withdrawal_strategy.person1 as { weights: Array<{ order: string[] }> }).weights[0].order;
+if (p1Strat[0] !== 'tfsa' || p1Strat[1] !== 'rrsp') throw new Error(`Person 1 Withdrawal Strategy mismatch: ${p1Strat}`);
 
-    // Monte Carlo Defaults Check
-    if (payload.inputs.return_std_dev !== 0.09) throw new Error('Monte Carlo return_std_dev mismatch');
-    if (payload.inputs.num_trials !== 1000) throw new Error('Monte Carlo num_trials mismatch');
-
-} catch (e) {
-    // eslint-disable-next-line n8n/no-restricted-globals
-    throw e;
-}
-*/
+// Monte Carlo Defaults Check
+if (payload.inputs.return_std_dev !== 0.09) throw new Error('Monte Carlo return_std_dev mismatch');
+if (payload.inputs.num_trials !== 1000) throw new Error('Monte Carlo num_trials mismatch');

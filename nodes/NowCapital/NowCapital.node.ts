@@ -3,7 +3,9 @@ import {
     INodeExecutionData,
     INodeType,
     INodeTypeDescription,
-    NodeOperationError,
+    NodeConnectionTypes,
+    NodeApiError,
+    JsonObject,
 } from 'n8n-workflow';
 
 interface CalculationPayload {
@@ -20,7 +22,7 @@ interface CalculationPayload {
 
 // Helper function to build the base API payload (mirrors the working MCP server logic)
 // Helper function to build the base API payload (mirrors the working MCP server logic)
-function constructPayload(context: IExecuteFunctions, itemIndex: number): CalculationPayload {
+export function constructPayload(context: IExecuteFunctions, itemIndex: number): CalculationPayload {
     const operation = context.getNodeParameter('operation', itemIndex) as string;
     const scenarioType = context.getNodeParameter('scenarioType', itemIndex) as string;
     const isIndividual = scenarioType === 'individual';
@@ -125,6 +127,7 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): Calcul
             db_index_after_retirement_to_cpi: p1Db.indexAfterToCpi || false,
             db_cpp_clawback_fraction: (p1Db.cppClawbackFraction as number || 0) / 100,
             db_survivor_benefit_percentage: p1Db.survivorBenefit || 0,
+            db_is_survivor_pension: p1Db.isSurvivor || false,
             pension_plan_type: 'Generic',
             has_10_year_guarantee: p1Db.hasGuarantee || false,
             // Assumptions P1 (Individualized)
@@ -166,6 +169,7 @@ function constructPayload(context: IExecuteFunctions, itemIndex: number): Calcul
             db_index_after_retirement_to_cpi: p2Db.indexAfterToCpi || false,
             db_cpp_clawback_fraction: (p2Db.cppClawbackFraction as number || 0) / 100,
             db_survivor_benefit_percentage: p2Db.survivorBenefit || 0,
+            db_is_survivor_pension: p2Db.isSurvivor || false,
             pension_plan_type: 'Generic',
             has_10_year_guarantee: p2Db.hasGuarantee || false,
             // Assumptions P2 (Individualized)
@@ -221,8 +225,8 @@ export class NowCapital implements INodeType {
         subtitle: '={{$parameter["operation"]}}',
         description: 'Advanced Canadian Retirement Planning & Monte Carlo Simulations',
         defaults: { name: 'NowCapital' },
-        inputs: ['main'],
-        outputs: ['main'],
+        inputs: [NodeConnectionTypes.Main],
+        outputs: [NodeConnectionTypes.Main],
         credentials: [{ name: 'nowCapitalApi', required: true }],
         properties: [
             // ... (keeping existing standard properties)
@@ -260,14 +264,6 @@ export class NowCapital implements INodeType {
                 required: true,
                 displayOptions: { show: { resource: ['plan'], operation: ['calculateWithTargetSpend', 'monteCarlo'] } },
                 description: 'Amount of money to spend monthly after-tax',
-            },
-            {
-                displayName: 'Enable Belt Tightening',
-                name: 'enableBeltTightening',
-                type: 'boolean',
-                default: false,
-                displayOptions: { show: { resource: ['plan'], operation: ['monteCarlo'] } },
-                description: 'Whether to forgo inflation adjustments on expenses after negative return years',
             },
             {
                 displayName: 'Scenario Type',
@@ -798,7 +794,7 @@ export class NowCapital implements INodeType {
                     returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
                     continue;
                 }
-                throw new NodeOperationError(this.getNode(), error as Error, { itemIndex: i });
+                throw new NodeApiError(this.getNode(), error as JsonObject);
             }
         }
         return [returnData];
