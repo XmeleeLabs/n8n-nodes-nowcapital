@@ -223,7 +223,7 @@ export class NowCapital implements INodeType {
         group: ['transform'],
         version: 1,
         subtitle: '={{$parameter["operation"]}}',
-        description: 'Advanced Canadian Retirement Planning & Monte Carlo Simulations',
+        description: 'Advanced Canadian retirement planning & Monte Carlo simulations',
         defaults: { name: 'NowCapital' },
         inputs: [NodeConnectionTypes.Main],
         outputs: [NodeConnectionTypes.Main],
