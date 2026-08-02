@@ -21,7 +21,6 @@ interface CalculationPayload {
 }
 
 // Helper function to build the base API payload (mirrors the working MCP server logic)
-// Helper function to build the base API payload (mirrors the working MCP server logic)
 export function constructPayload(context: IExecuteFunctions, itemIndex: number): CalculationPayload {
     const operation = context.getNodeParameter('operation', itemIndex) as string;
     const scenarioType = context.getNodeParameter('scenarioType', itemIndex) as string;
