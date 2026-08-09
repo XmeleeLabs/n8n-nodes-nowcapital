@@ -193,7 +193,7 @@ export function constructPayload(context: IExecuteFunctions, itemIndex: number):
             return_std_dev: 0.09,
             cpi_std_dev: 0.012,
             return_cpi_correlation: -0.05,
-            num_trials: 1000,
+            num_trials: 512,
             distribution_model: 'lognormal',
         },
         withdrawal_strategy: {
